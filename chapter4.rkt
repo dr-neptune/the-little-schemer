@@ -134,6 +134,12 @@
 (book/↑ 2 3)
 (book/↑ 5 3)
 
+(define (↑ m n)
+  (cond [(book/= n 0) 1]
+        [else
+         (* m (↑ m (sub1 n)))]))
+
+
 (define (match/↑ m n)
   (match n
     [0 1]
