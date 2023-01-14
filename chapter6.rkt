@@ -176,3 +176,42 @@
 
 (expand-once
  #'(infix (((2 + (3 * 4)) * (6 + (5 - 3))) ↑ (2 + (3 * 1)))))
+
+(define (make-number n)
+  (match n
+    [0 '()]
+    [_ (cons '() (make-number (sub1 n)))]))
+
+(define (sero? n) (null? n))
+
+(define (edd1 n)
+  (cons '() n))
+
+(edd1 (make-number 5))
+
+(define (zub1 n)
+  (match n
+    ['() '()]
+    [_ (rest n)]))
+
+(zub1 (make-number 0))
+(zub1 (make-number 5))
+
+(define (ls/+ a b)
+  (match a
+    ['() b]
+    [_ (ls/+ (zub1 a) (cons '() b))]))
+
+(zub1 (make-number 2))
+
+(ls/+ (make-number 5) (make-number 2))
+
+(define (lat? l)
+  (cond [(null? l) #t]
+        [(atom? (car l))
+         (lat? (rest l))]
+        [else #f]))
+
+(lat? (make-number 5))
+
+(lat? (map make-number '(1 2 3)))
