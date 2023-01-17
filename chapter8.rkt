@@ -244,5 +244,60 @@
 
 (multirember&co 'tuna '(tuna) new-friend)
 (multirember&co 'tuna '(and tuna) new-friend)
-
 (multirember&co 'tuna '(strawberries tuna and swordfish) (λ (x y) (length x)))
+
+(define (multiinsertLR new oldL oldR lat)
+  (cond [(null? lat) '()]
+        [(eq? (first lat) oldL)
+         (cons new (cons oldL (multiinsertLR new oldL oldR (rest lat))))]
+        [(eq? (first lat) oldR)
+         (cons oldR (cons new (multiinsertLR new oldL oldR (rest lat))))]
+        [else
+         (cons (first lat) (multiinsertLR new oldL oldR (rest lat)))]))
+
+(multiinsertLR 'apple 'pear 'banana '(there was an apple and a pear and a banana))
+
+;; (define (multiinsertLR&co new oldL oldR lat col)
+;;   (cond [(null? lat) (col '() 0 0)]
+;;         [(eq? (first lat) oldL)
+;;          (cons new (cons oldL (multiinsertLR&co new oldL oldR (rest lat)
+;;                                                 (λ (newlat L R) newlat))))]
+;;         [(eq? (first lat) oldR)
+;;          (cons oldR (cons new (multiinsertLR&co new oldL oldR (rest lat)
+;;                                                 (λ (newlat L R) newlat))))]
+;;         [else
+;;          (cons (first lat) (multiinsertLR&co new oldL oldR (rest lat)
+;;                                              (λ (newlat L R) newlat)))]))
+
+;; (λ (newlat L R) (col (cons (car lat) newlat) L R))
+
+(define (multiinsertLR&co new oldL oldR lat col)
+  (cond [(null? lat) (col '() 0 0)]
+        [(eq? (car lat) oldL)
+         (multiinsertLR&co new oldL oldR (cdr lat)
+                           (λ (newlat L R)
+                             (col (cons new (cons oldL newlat))
+                                  (add1 L) R)))]
+        [(eq? (car lat) oldR)
+         (multiinsertLR&co new oldL oldR (cdr lat)
+                           (λ (newlat L R)
+                             (col (cons oldR (cons new newlat))
+                                  L (add1 R))))]
+        [else
+         (multiinsertLR&co new oldL oldR (cdr lat)
+                           (λ (newlat L R)
+                             (col (cons (car lat) newlat) L R)))]))
+
+(define (evens-only* l)
+  (cond [(null? l) '()]
+        [(atom? (first l))
+         (cond [(even? (first l))
+                (cons (first l) (evens-only* (rest l)))]
+               [else
+                (evens-only* (rest l))])]
+        [else
+         (cons (evens-only* (first l))
+               (evens-only* (rest l)))]))
+
+(evens-only* '(1 2 (3 4) 5 6 (7 8 (9 10))))
+(evens-only* '((9 1 2 8) 3 10 ((9 9) 7 6) 2))
