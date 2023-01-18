@@ -301,3 +301,31 @@
 
 (evens-only* '(1 2 (3 4) 5 6 (7 8 (9 10))))
 (evens-only* '((9 1 2 8) 3 10 ((9 9) 7 6) 2))
+
+(define (evens-only*&co l col)
+  (cond [(null? l) (col '() 1 0)]
+        [(atom? (first l))
+         (cond [(even? (first l))
+                (evens-only*&co (rest l)
+                                (λ (evenlat evenmult oddsum)
+                                  (col (cons (first l) evenlat)
+                                       (* (first l) evenmult)
+                                       oddsum)))]
+               [else
+                (evens-only*&co (rest l)
+                                (λ (evenlat evenmult oddsum)
+                                  (col evenlat
+                                       evenmult
+                                       (+ (first l) oddsum))))])]
+        [else
+         (evens-only*&co (first l)
+                         (λ (al ap as)
+                           (evens-only*&co (rest l)
+                                           (λ (dl dp ds)
+                                             (col (cons al dl)
+                                                  (* ap dp)
+                                                  (+ as ds))))))]))
+
+(evens-only*&co '((9 1 2 8) 3 10 ((9 9) 7 6) 2)
+                (λ (newl product sum)
+                  (cons sum (cons product newl))))
