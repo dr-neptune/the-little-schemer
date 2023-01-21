@@ -1,6 +1,13 @@
 #lang racket
 (require racket)
 
+#|
+Notes from
+
+https://matt.might.net/articles/programming-with-continuations--exceptions-backtracking-search-threads-generators-coroutines/
+
+|#
+
 (display
  (call/cc (λ (cc)
             (display "I got here.\n")
@@ -190,3 +197,158 @@
        (newline)))
 
 ;; Generators
+(define (void) (when #f #t))
+
+; tree-iterator : tree -> generator
+(define (tree-iterator tree)
+  (λ (yield)
+    ;; walk the tree, yielding the leaves
+    (if (not (pair? tree))
+        (yield tree)
+        (begin
+          (walk (car tree)
+                (cdr tree)))))
+  (walk tree))
+
+
+
+; current-continuation : -> continuation
+(define (current-continuation)
+  (call-with-current-continuation
+   (lambda (cc)
+     (cc cc))))
+
+; void : -> void
+(define (void)
+  (if #f #t))
+
+; tree-iterator : tree -> generator
+(define (tree-iterator tree)
+  (lambda (yield)
+
+    ;; Walk the tree, yielding the leaves.
+
+    (define (walk tree)
+      (if (not (pair? tree))
+          (yield tree)
+          (begin
+            (walk (car tree))
+            (walk (cdr tree)))))
+
+    (walk tree)))
+
+; make-yield : continuation -> (value -> ...)
+(define (make-yield for-cc)
+  (λ (value)
+    (let ((cc (current-continuation)))
+      (if (procedure? cc)
+          (for-cc (cons cc value))
+          (void)))))
+
+(define-syntax for
+  (syntax-rules (in)
+    ((_ v in iterator body ...)
+     (let ((i iterator)
+           (iterator-cont #f))
+       (letrec ((loop (λ ()
+                        (let ((cc (current-continuation)))
+                          (if (procedure? cc)
+                              (if iterator-cont
+                                  (iterator-cont (void))
+                                  (iterator (make-yield cc)))
+                              (let ((it-cont (car cc))
+                                    (it-val (cdr cc)))
+                                (set! iterator-cont it-cont)
+                                (let ((v it-val))
+                                  body ...)
+                                (loop)))))))
+         (loop))))))
+
+(for v in (tree-iterator '(3 . ((4 . 5) . 6)))
+     (display v)
+     (newline))
+
+(for v in (tree-iterator '(1
+                           . (2
+                              . ((3 . ((4 . 5) . 6))
+                                 . ((7 . ((8 . 9) . 10))
+                                    . (11 . 12))))))
+                         (display v)
+                         (newline))
+
+;; cooperative threads (coroutines)
+;; the api for cooperative multithreading has 5 functions
+;; (spawn thunk) puts a thread for `thunk` into the thread queue
+;; (quit) kills the current thread and removes it from the thread queue
+;; (yield) hands control from the current thread to another thread
+;; (start-threads) starts executing threads in the thread queue
+;; (halt) exits all threads
+
+; thread-queue : list[continuation]
+(define thread-queue '())
+
+; halt : continuation
+(define halt #f)
+
+; void : -> void
+(define (void) (when #f #t))
+
+; spawn : (-> anything) -> void
+(define (spawn thunk)
+  (let ((cc (current-continuation)))
+    (if (procedure? cc)
+        (set! thread-queue (append thread-queue (list cc)))
+        (begin (thunk)
+               (quit)))))
+
+; yield : value -> void
+(define (yield)
+  (let ((cc (current-continuation)))
+    (if (and (procedure? cc)
+             (pair? thread-queue))
+        (let ((next-thread (car thread-queue)))
+          (set! thread-queue (append (cdr thread-queue) (list cc)))
+          (next-thread 'resume))
+        (void))))
+
+; quit : -> ...
+(define (quit)
+  (if (pair? thread-queue)
+      (let ((next-thread (car thread-queue)))
+        (set! thread-queue (cdr thread-queue))
+        (next-thread 'resume))
+      (halt)))
+
+; start-threads : -> ...
+(define (start-threads)
+  (let ((cc (current-continuation)))
+    (if cc
+        (begin
+          (set! halt (λ () (cc #f)))
+          (if (null? thread-queue)
+              (void)
+              (begin
+                (let ((next-thread (car thread-queue)))
+                  (set! thread-queue (cdr thread-queue))
+                  (next-thread 'resume)))))
+        (void))))
+
+
+;; example cooperatively threaded program
+(define counter 10)
+
+(define (make-thread-thunk name)
+  (letrec ((loop (λ ()
+                   (when (< counter 0)
+                     (quit))
+                   (displayln (format "in thread ~a; counter = ~a" name counter))
+                   (set! counter (sub1 counter))
+                   (yield)
+                   (loop))))
+    loop))
+
+(spawn (make-thread-thunk 'a))
+(spawn (make-thread-thunk 'b))
+(spawn (make-thread-thunk 'c))
+
+(start-threads)
