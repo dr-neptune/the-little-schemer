@@ -153,4 +153,158 @@ table
 (define (value e) (meaning e '()))
 (define (meaning e table) ((expression-to-action e) e table))
 
-(value 'hi)
+(define (build s1 s2)
+  (cons s1 (cons s2 '())))
+
+(define (*const e table)
+  (cond [(number? e) e]
+        [(eq? e #t) #t]
+        [(eq? e #f) #f]
+        [else
+         (build 'primitive e)]))
+
+(define (*quote e table)
+  (second e))
+
+(define (*identifier e table)
+  (lookup-in-table e table '()))
+
+(define (*lambda e table)
+  (build 'non-primitive
+         (cons table (cdr e))))
+
+(meaning '(λ (x) (cons x y))
+         '(((y z)
+            ((8) 9))))
+
+(define table-of first)
+(define formals-of second)
+(define body-of third)
+
+(define (evcon lines table)
+  (cond [(else? (question-of (car lines)))
+         (meaning (answer-of (car lines)) table)]
+        [(meaning (question-of (car lines)) table)
+         (meaning (answer-of (car lines)) table)]
+        [else (evcon (cdr lines) table)]))
+
+(define (else? x)
+  (cond [(atom? x) (eq? x 'else)]
+        [else #f]))
+
+(define question-of first)
+(define answer-of second)
+
+(define (*cond e table)
+  (evcon (cond-lines-of e) table))
+
+(define cond-lines-of cdr)
+
+(*cond '(cond (coffee klatsch) (else party))
+       '(((coffee) (#t))
+         ((klatsch party) (5 (6)))))
+
+(define (evlis args table)
+  (cond [(null? args) '()]
+        [else
+         (cons (meaning (car args) table)
+               (evlis (cdr args) table))]))
+
+(define (*application e table)
+  (apply
+   (meaning (function-of e) table)
+   (evlis (arguments-of e) table)))
+
+(define function-of car)
+(define arguments-of cdr)
+
+(define (primitive? e)
+  (eq? (first e) 'primitive))
+
+(define (non-primitive? e)
+  (eq? (first e) 'non-primitive))
+
+(define (apply fun vals)
+  (cond [(primitive? fun)
+         (apply-primitive (second fun) vals)]
+        [(non-primitive? fun)
+         (apply-closure (second fun) vals)]))
+
+(define (apply-primitive name vals)
+  (cond [(eq? name 'cons)
+         (cons (first vals) (second vals))]
+        [(eq? name 'car)
+         (car (first vals))]
+        [(eq? name 'cdr)
+         (cdr (first vals))]
+        [(eq? name 'null?)
+         (null? (first vals))]
+        [(eq? name 'eq?)
+         (eq? (first vals) (second vals))]
+        [(eq? name 'atom?)
+         (:atom? (first vals))]
+        [(eq? name 'zero?)
+         (zero? (first vals))]
+        [(eq? name 'add1)
+         (add1 (first vals))]
+        [(eq? name 'sub1)
+         (sub1 (first vals))]
+        [(eq? name 'number?)
+         (number? (first vals))]))
+
+(define (:atom? x)
+  (cond [(atom? x) #t]
+        [(null? x) #f]
+        [(eq? (car x) 'primitive) #t]
+        [(eq? (car x) 'non-primitive) #t]
+        [else #f]))
+
+(define (apply-closure closure vals)
+  (meaning (body-of closure)
+           (extend-table
+            (new-entry
+             (formals-of closure)
+             vals)
+            (table-of closure))))
+
+(apply-closure '((((u v w)
+                   (1 2 3))
+                  ((x y z)
+                   (4 5 6)))
+                 (x y)
+                 ('cons z x))
+               '((a b c)
+                 (d e f)))
+
+(meaning '6 '(((x y)
+               ((a b c)(d e f)))
+              ((u v w)
+               (1 2 3))
+              ((x y z)
+               (4 5 6))))
+
+(meaning 'x '(((x y)
+               ((a b c)(d e f)))
+              ((u v w)
+               (1 2 3))
+              ((x y z)
+               (4 5 6))))
+
+(meaning 'z '(((x y)
+              ((a b c)(d e f)))
+             ((u v w)
+              (1 2 3))
+             ((x y z)
+              (4 5 6))))
+
+(evlis '(z x)
+       '(((x y)
+          ((a b c)(d e f)))
+         ((u v w)
+          (1 2 3))
+         ((x y z)
+          (4 5 6))))
+
+(meaning 'cons '())
+
+(apply-primitive 'cons '(6 (a b c)))
